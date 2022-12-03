@@ -1,0 +1,5 @@
+__pycache__
+.vscode
+*.mp4
+processed_frames
+raw_frames
