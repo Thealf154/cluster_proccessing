@@ -3,7 +3,7 @@ import cv2
 import os
 import numpy as np
 from PIL import Image, ImageDraw
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 import asciify
 
 def recolect_frames(video_name):
@@ -32,10 +32,11 @@ def write_ascii_to_image(frame_name, frame_art):
     processed_frame_path = os.path.join('./', 'processed_frames/')
     processed_frame_file = os.path.join(processed_frame_path, frame_name)
     print("Frame escrito " + frame_name)
-    img = Image.new('RGB', (480 * 2, 360 * 2), color = (255, 255, 255))
+    img = Image.new('RGB', (480 * 2, 360), color = (255, 255, 255))
     d1 = ImageDraw.Draw(img)
     d1.text((0, 0), frame_art, fill =(0, 0, 0))
     img.save(processed_frame_file)
+    print("XD")
 
 def get_raw_frames():
     raw_frames = []
@@ -65,5 +66,6 @@ if __name__ == '__main__':
             ascii_frames_name.append(result[0]) 
             ascii_frames.append(result[1]) 
 
-    for i in range(0, len(ascii_frames)):
-        write_ascii_to_image(ascii_frames_name[i], ascii_frames[i])
+    with ThreadPoolExecutor() as executor:
+        for i in range(0, len(ascii_frames)):
+            _ = executor.submit(write_ascii_to_image, ascii_frames_name[i], ascii_frames[i])
