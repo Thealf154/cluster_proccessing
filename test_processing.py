@@ -2,7 +2,7 @@ from multiprocessing import Pool
 import cv2
 import os
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 import concurrent.futures
 import asciify
 
@@ -28,12 +28,14 @@ def create_frame_ascii_art(frame_name):
     print("Frame procesada: " + frame_name)
     return [frame_name, ascii_art_frame]
 
-def write_ascii_to_image(frame_art, frame_name):
+def write_ascii_to_image(frame_name, frame_art):
     processed_frame_path = os.path.join('./', 'processed_frames/')
     processed_frame_file = os.path.join(processed_frame_path, frame_name)
     print("Frame escrito " + frame_name)
-    img = Image.new('RGB', (480, 360), color = (255, 255, 255))
-    img.save(processed_frame_file, frame_art)
+    img = Image.new('RGB', (480 * 2, 360 * 2), color = (255, 255, 255))
+    d1 = ImageDraw.Draw(img)
+    d1.text((0, 0), frame_art, fill =(0, 0, 0))
+    img.save(processed_frame_file)
 
 def get_raw_frames():
     raw_frames = []
@@ -55,19 +57,13 @@ def get_processed_frames():
 if __name__ == '__main__':
     # recolect_frames('bad_apple.mp4')
     raw_frames = get_raw_frames()
+    ascii_frames_name = []
     ascii_frames = []
-    ascii_frame_names = []
 
     with Pool(5) as p:
         for result in p.map(create_frame_ascii_art, raw_frames):
-            ascii_frames.append(result[0]) 
-            ascii_frame_names.append(result[1]) 
+            ascii_frames_name.append(result[0]) 
+            ascii_frames.append(result[1]) 
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_url = {executor.submit(write_ascii_to_image, ascii_frames, ascii_frame_names, 60)}
-        for future in concurrent.futures.as_completed(future_to_url):
-            frame = future_to_url[future]
-            try:
-                data = future.result()
-            except Exception as exc:
-                print('%r generated an exception: %s' % (frame, exc))
+    for i in range(0, len(ascii_frames)):
+        write_ascii_to_image(ascii_frames_name[i], ascii_frames[i])
