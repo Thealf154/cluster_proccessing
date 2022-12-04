@@ -3,3 +3,6 @@ __pycache__
 *.mp4
 processed_frames/
 raw_frames/
+*.avi
+*.wav
+*.ttf

@@ -8,13 +8,16 @@ method resize():
     - takes as parameters the image, and the final width
     - resizes the image into the final width while maintaining aspect ratio
 '''
-def resize(image, new_width=100):
+def resize(image, new_width=480):
     (old_width, old_height) = image.size
     aspect_ratio = float(old_height)/float(old_width)
     new_height = int(aspect_ratio * new_width)
     new_dim = (new_width, new_height)
     new_image = image.resize(new_dim)
     return new_image
+
+def get_resized_dimensions():
+    pass
 '''
 method grayscalify():
     - takes an image as a parameter
@@ -36,15 +39,15 @@ def modify(image, buckets=25):
 method do():
     - does all the work by calling all the above functions
 '''
-def do(image, new_width=100):
-    image = resize(image)
+def do(image, frame_dimensions):
+    image = image.resize(frame_dimensions)
     image = grayscalify(image)
 
     pixels = modify(image)
     len_pixels = len(pixels)
 
     # Construct the image from the character list
-    new_image = [pixels[index:index+new_width] for index in range(0, len_pixels, new_width)]
+    new_image = [pixels[index:index+frame_dimensions[0]] for index in range(0, len_pixels, frame_dimensions[0])]
 
     return '\n'.join(new_image)
 
