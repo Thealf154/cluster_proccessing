@@ -6,7 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 from flask import Flask
 import sys
-import time
+from flask_cors import CORS
+
 
 logger = logging.getLogger()
 logging.basicConfig(format='%(asctime)s : %(message)s',
@@ -19,11 +20,13 @@ peers = []
 wanted_peers = 3
 
 # create a Socket.IO server
-sio = socketio.Server(async_mode='threading', max_http_buffer_size=(80_000_000))
+sio = socketio.Server(async_mode='threading', max_http_buffer_size=(80_000_000), cors_allowed_origins=[], engineio_logger=True, always_connect=True, logger=True)
 app = Flask(__name__)
+CORS(app)
 app.wsgi_app = socketio.WSGIApp(sio, app.wsgi_app)
 
 process_video_instance = ProcessVideo('bad_apple.mp4')
+logging.getLogger('flask_cors').level = logging.DEBUG
 
 
 @sio.event
@@ -107,4 +110,4 @@ def send_chunk(chunk_name):
 if __name__ == '__main__':
     # web.run_app(app,port=5000)
     #eventlet.wsgi.server(eventlet.listen(('localhost', 5000)), app)
-    app.run(port=8000)
+    app.run(host='0.0.0.0', port=8000)
