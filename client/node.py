@@ -35,7 +35,7 @@ def handle_errors(data):
         pass
 
 def send_processed_chunk():
-    #process_video_instance.run()
+    process_video_instance.run()
     chunk_name = 'procc-chunk-' + sio.sid + '.zip'
     process_video_instance.divide_frames_in_chunks(
         chunk_name,
@@ -57,8 +57,8 @@ def send_chunk(chunk_name):
 
 def main():
     sio.connect('http://localhost:8000')
-    #sio.emit('check_connected_peers', {'xd':'xd'})
-    send_processed_chunk()
+    sio.emit('check_connected_peers', {'xd':'xd'})
+    #send_processed_chunk()
     #sio.emit('errors', errors)
     errors = []
 
