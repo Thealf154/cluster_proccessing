@@ -53,6 +53,7 @@ def send_chunk(chunk_name):
             {'chunk_name': chunk_name, 'chunk_data': data}
         )
         zip.flush()
+    sio.emit('check_processed_chunk', {'xd':'xd'})
 
 def main():
     sio.connect('http://localhost:8000')

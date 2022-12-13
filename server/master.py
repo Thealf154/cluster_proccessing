@@ -89,7 +89,6 @@ def make_chunks():
         chunk_name = str(peer['sid']) + '.zip'
         process_video_instance.divide_frames_in_chunks(
             chunk_name, 
-            peer['frames_to_process'],
             'raw_frames',
             'raw_chunks'
         )
