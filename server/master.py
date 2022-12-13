@@ -16,10 +16,10 @@ logging.basicConfig(format='%(asctime)s : %(message)s',
 peers = []
 
 # How many peers will work on the video
-max_peers = 3
+wanted_peers = 3
 
 # create a Socket.IO server
-sio = socketio.Server(async_mode='threading')
+sio = socketio.Server(async_mode='threading', max_http_buffer_size=(80_000_000))
 app = Flask(__name__)
 app.wsgi_app = socketio.WSGIApp(sio, app.wsgi_app)
 
@@ -38,7 +38,13 @@ def connect(sid, environ):
 
 @sio.event
 def check_connected_peers(sid, data):
-    start_processing()
+    if len(peers) == wanted_peers:
+        start_processing()
+
+def check_processed_chunks():
+    processed_chunks_path = os.path.join('./', 'processed_chunks')
+    if len(os.listdir(processed_chunks_path)) == len(peers):
+        process_video_instance.make_final_video()
 
 @sio.event
 def disconnect(sid):
@@ -46,19 +52,14 @@ def disconnect(sid):
     peers = peers_updated
     print('Este peer se ha desconectado: ', sid)
 
-
 @sio.event
-def handle_processed_image(sid, frame_data):
-    try:
-        processed_frame_file = os.path.join(
-            './', 'processed_frames/', frame_data['frame_name'])
-        with open(processed_frame_file, 'wb') as i:
-            i.write(frame_data['frame'])
-            logger.info('Frame {} fue guardado exitosamente'.format(
-                frame_data['name']))
-    except Exception as e:
-        logger.error('Algo paso mal', e)
-
+def on_processed_chunk(sid, data):
+    print('Se recibió el chunk: ', data['chunk_name'])
+    chunk_path = os.path.join('./', 'processed_chunks/', data['chunk_name'])
+    with open(chunk_path, 'wb') as zip:
+        zip.write(data['chunk_data']) 
+    process_video_instance.extract_chunk(chunk_path, 'processed_frames')
+    check_processed_chunks()
 
 def divide_workload(raw_frames):
     dividend, residue = divmod(len(raw_frames), len(peers))
@@ -71,57 +72,40 @@ def divide_workload(raw_frames):
             end = dividend * (i + 1)
             peers[i]['frames_to_process'] = raw_frames[start:end]
     if residue != 0:
-        peers[len(peers)].append(raw_frames[-residue])
-
-
-def parse_workload(raw_frames):
-    dividend, residue = divmod(len(raw_frames), len(peers))
-    workload = []
-    for i in range(0, len(peers)):
-        if i == 0:
-            for j in raw_frames[i:dividend]:
-                workload.append({'sid': peers[i]['sid'], 'frame_name': j})
-        else:
-            start = (dividend * i) + 1
-            end = dividend * (i + 1)
-            for j in raw_frames[start:end]:
-                workload.append({'sid': peers[i]['sid'], 'frame_name': j})
-    if residue != 0:
-        peers[len(peers)].append(raw_frames[-residue])
-
-    return workload
+        peers[len(peers)]['frames_to_process'].append(raw_frames[-residue])
 
 
 def start_processing():
     # process_video_instance.recolect_frames()
     raw_frames = process_video_instance.get_raw_frames()
-    workload = parse_workload(raw_frames)
-    with ThreadPoolExecutor(max_workers=max_peers) as executor:
-        future_to_send_frame = {executor.submit(
-            send_raw_frame, work['sid'], work['frame_name']): work for work in workload}
-        for future in concurrent.futures.as_completed(future_to_send_frame):
-            url = future_to_send_frame[future]
-        try:
-            data = future.result()
-        except Exception as exc:
-            print('%r generated an exception: %s' % (url, exc))
+    divide_workload(raw_frames)
+    make_chunks()
+    with ThreadPoolExecutor(max_workers=wanted_peers) as executor:
+        chunk_path = os.path.join('./', 'raw_chunks/')
+        executor.map(send_chunk, os.listdir(chunk_path))
 
+def make_chunks():
+    for peer in peers:
+        chunk_name = str(peer['sid']) + '.zip'
+        process_video_instance.divide_frames_in_chunks(
+            chunk_name, 
+            peer['frames_to_process'],
+            'raw_frames',
+            'raw_chunks'
+        )
 
-def send_raw_frame(sid, raw_frame):
-    try:
-        raw_frame_path = os.path.join('./', 'raw_frames/', raw_frame)
-        with open(raw_frame_path, 'rb') as frame:
-            data = frame.read() 
-            os.wait()
-            sio.emit('on_raw_image', {
-                     'frame_name': raw_frame, 'frame_data': data}, to=sid)
-            print('Frame envíado: ', raw_frame)
-            time.sleep(0.5)
-    except Exception as exc:
-        print('Error: ', exc)
-
+def send_chunk(chunk_name):
+    raw_chunk_path = os.path.join('./', 'raw_chunks/', chunk_name)
+    with open(raw_chunk_path, 'rb') as zip:
+        data = zip.read()
+        sio.emit(
+            'on_zip_chunk', 
+            {'chunk_name': chunk_name, 'chunk_data': data},
+            to=(str(chunk_name).split('.').pop(0))
+        )
+        zip.flush()
 
 if __name__ == '__main__':
     # web.run_app(app,port=5000)
     #eventlet.wsgi.server(eventlet.listen(('localhost', 5000)), app)
-    app.run(port=5000)
+    app.run(port=8000)
