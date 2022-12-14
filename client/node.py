@@ -1,11 +1,15 @@
 import os
 from process_video import ProcessVideo
 import socketio
+import requests
+import math
+import random
 
 sio = socketio.Client()
 
 # Instantiate the ProcessVideo Class
 process_video_instance = ProcessVideo()
+url = 'http://localhost:8000/'
 
 @sio.event
 def connect():
@@ -13,48 +17,62 @@ def connect():
 
 @sio.event
 def disconnect():
-    print('unu')
-
-
-@sio.event
-def on_zip_chunk(data):
-    print('Se recibió el chunk: ', data['chunk_name'])
-    chunk_path = os.path.join('./', 'raw_chunks/', data['chunk_name'])
-    with open(chunk_path, 'wb') as zip:
-        zip.write(data['chunk_data']) 
-    process_video_instance.extract_chunk(chunk_path, 'raw_frames')
-    print('Se extrajo chunk: ', data['chunk_name'])
-    send_processed_chunk()
+    print('Estoy desconectado')
 
 @sio.event
-def start_processing_chunk(data):
-    send_processed_chunk()
+def chunks_ready():
+    url_with_sid = url + 'request_chunk/' + str(id)
+    response = requests.get(
+        url=url_with_sid
+    )
+    chunk_name = str(id) + '.zip'
+    chunk_path = os.path.join('./', 'raw_chunks/', chunk_name)
+    """
+    save_chunk(chunk_path, response.content)
+    extract_chunk_destination = os.path.join('./', 'raw_frames/')
+    process_video_instance.extract_chunk(
+        destination=extract_chunk_destination,
+        chunk_path=chunk_path
+    )
+    """
+    process_frames()
 
-def send_processed_chunk():
+def save_chunk(chunk_path, chunk_data):
+    with open(chunk_path, 'wb') as chunk:
+        chunk.write(chunk_data)
+
+def process_frames():
     process_video_instance.run()
-    pro = process_video_instance.get_processed_frames()
-    chunk_name = 'procc-chunk-' + sio.sid + '.zip'
+    processed_frames = process_video_instance.get_processed_frames()
     process_video_instance.divide_frames_in_chunks(
         chunk_name,
         'processed_frames',
         'processed_chunks',
-        pro
-    )
-    raw_chunk_path = os.path.join('./', 'processed_chunks/', chunk_name)
-    with open(raw_chunk_path, 'rb') as zip:
+        processed_frames
+    )   
+    chunk_name = str(id) + '.zip'
+    processed_chunk_path = os.path.join('./', 'processed_chunks/', chunk_name)
+    with open(processed_chunk_path, 'rb') as zip:
         data = zip.read()
-        sio.emit(
-            'on_processed_chunk', 
-            {'chunk_name': chunk_name, 'chunk_data': data}
+        url_with_sid = url + 'send_chunk/' + str(id)
+        requests.post(
+            url=url_with_sid,
+            files={'file': data},
+            headers={
+               "enctype" : "multipart/form-data" 
+            }
         )
-        zip.flush()
-    sio.emit('check_processed_chunk', {'xd':'xd'})
+
+def get_sid():
+    sid = math.ceil(random.random() * 100)
+    return sid
+
+id = get_sid()
 
 def main():
-    sio.connect('http://localhost:8000')
-    sio.emit('check_connected_peers', {'xd':'xd'})
-    #send_processed_chunk()
+    sio.connect('http://localhost:8000', auth={'sid': id})
+    sio.emit('check_connected_peers')
+
 
 if __name__ == '__main__':
     main()
-    #asyncio.run(main())

@@ -108,7 +108,7 @@ class ProcessVideo:
         return new_dim
 
     def get_original_dimensions(self):
-        frame_sample_path = os.path.join('./', 'raw_frames/', 'frame_0.png')
+        frame_sample_path = os.path.join('./', 'raw_frames/', self.raw_frames[0])
         frame_sample = Image.open(frame_sample_path)
         (old_width, old_height) = frame_sample.size
         return (old_width, old_height)
@@ -147,7 +147,7 @@ class ProcessVideo:
         file_path = os.path.join('./', frame_type)
         with ZipFile(zip_path, 'w') as zip:
             for frame in frames:
-                zip.write(os.path.join('./raw_frames/', frame), os.path.relpath(frame, file_path))
+                zip.write(os.path.join('./{}/'.format(frame_type), frame), os.path.relpath(frame, file_path))
         self.logger.debug('Se terminó el chunk: ', chunk_name)
 
     @staticmethod

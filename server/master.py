@@ -1,14 +1,11 @@
-import socketio
-import os
 import logging
 from process_video import ProcessVideo
-from concurrent.futures import ThreadPoolExecutor
-import concurrent.futures
-from multiprocessing import Pool
 from flask import Flask
-import sys
 from flask_cors import CORS
-import time
+from flask import Flask, render_template, jsonify, request, send_file
+from flask_socketio import SocketIO
+import sys
+import os
 
 
 logger = logging.getLogger()
@@ -23,52 +20,84 @@ wanted_peers = 1
 chunks = 0
 
 # create a Socket.IO server
-sio = socketio.Server(async_mode='threading', max_http_buffer_size=(80_000_000), cors_allowed_origins=[], engineio_logger=True, always_connect=True, logger=True)
 app = Flask(__name__)
 CORS(app)
-app.wsgi_app = socketio.WSGIApp(sio, app.wsgi_app)
+app.config['SECRET_KEY'] = 'secret!'
+socketio = SocketIO(app, logger=True, engineio_logger=True)
 
 process_video_instance = ProcessVideo('bad_apple.mp4')
 logging.getLogger('flask_cors').level = logging.DEBUG
 
 
-@sio.event
-def connect(sid, environ):
-    peer = {'sid': sid,
-            'has_extracted_chunk': 1,
+@socketio.event
+def connect(auth):
+    peer = {'sid': auth['sid'],
+            'has_extracted_chunk': 0,
             'frames_to_process': []}
     peers.append(peer)
-    print('Peer conectad: ', sid)
+    print('Peer conectado: ', auth['sid'])
 
 
-@sio.event
-def check_connected_peers(sid, data):
-    if len(peers) == wanted_peers:
-        start_processing()
-
-def check_processed_chunks():
-    processed_chunks_path = os.path.join('./', 'processed_chunks')
-    if len(os.listdir(processed_chunks_path)) == len(peers):
-        process_video_instance.make_final_video()
-
-@sio.event
+@socketio.event
 def disconnect(sid):
     peers_updated = [peer for peer in peers if peer['sid'] != sid]
     peers = peers_updated
     print('Este peer se ha desconectado: ', sid)
 
-@sio.event
-def check_chunk(sid, data):
-    sio.emit('start_processing_chunk', {'xd': 'xd'}, to=sid)
+    
+@app.route("/request_chunk/<sid>")
+def send_chunk(sid):
+    raw_chunks_path = os.path.join('./', 'raw_chunks')
+    raw_chunk_path = find_chunk(sid, os.listdir(raw_chunks_path))
+    if raw_chunk_path:
+        chunk = open_chunk(raw_chunk_path)
+        return send_file(
+            raw_chunk_path
+        )
+    else:
+        return None
 
-@sio.event
-def on_processed_chunk(sid, data):
-    print('Se recibió el chunk: ', data['chunk_name'])
-    chunk_path = os.path.join('./', 'processed_chunks/', data['chunk_name'])
-    with open(chunk_path, 'wb') as zip:
-        zip.write(data['chunk_data']) 
-    process_video_instance.extract_chunk(chunk_path, 'processed_frames')
-    check_processed_chunks()
+@app.route("/send_chunk/<sid>", methods=['POST'])
+def receive_chunk(sid):
+    chunk_path = os.path.join('./', 'processed_chunks/', str(str(sid) + '.zip'))
+    if request.method == 'POST':
+        f = request.files['file']
+        f.save(dst=chunk_path, buffer_size=300)
+        f.close()
+        process_video_instance.extract_chunk(chunk_path, 'processed_frames')
+        check_processed_chunks()
+
+
+def check_processed_chunks():
+    processed_chunks_path = os.path.join('./', 'processed_chunks')
+    processed_chunks = os.listdir(processed_chunks_path)
+    chunks_available = 0 
+    for peer in peers:
+        chunk_name = str(peer['sid']) + '.zip'
+        if chunk_name in processed_chunks:
+            chunks_available += 1
+    if chunks_available == wanted_peers:
+        make_final_video()
+
+def make_final_video():
+    process_video_instance.make_final_video()
+
+def find_chunk(sid, dirs):
+    chunk = None
+    chunk_path = os.path.join('./', 'raw_chunks/')
+    if (sid + '.zip') in dirs:
+        chunk = os.path.join(chunk_path, (sid + '.zip'))
+    return chunk
+
+def open_chunk(chunk_path):
+    with open(chunk_path, 'rb') as chunk:
+        data = chunk.read() 
+        return data
+
+@socketio.event
+def check_connected_peers():
+    if len(peers) == wanted_peers:
+        start_processing()
 
 def divide_workload(raw_frames):
     dividend, residue = divmod(len(raw_frames), len(peers))
@@ -83,21 +112,6 @@ def divide_workload(raw_frames):
     if residue != 0:
         peers[len(peers) - 1]['frames_to_process'].append(raw_frames[-residue])
 
-
-def start_processing():
-    #process_video_instance.recolect_frames()
-    raw_frames = process_video_instance.get_raw_frames()
-    divide_workload(raw_frames)
-    make_chunks()
-    """
-    chunks = load_chunks()
-    with ThreadPoolExecutor(max_workers=wanted_peers) as executor:
-        executor.map(send_chunk_2, chunks)
-    """
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        chunk_path = os.path.join('./', 'raw_chunks/')
-        executor.map(send_chunk, os.listdir(chunk_path))
-
 def make_chunks():
     for peer in peers:
         chunk_name = str(peer['sid']) + '.zip'
@@ -108,61 +122,13 @@ def make_chunks():
             peer['frames_to_process']
         )
 
-def load_chunks():
-    chunks = []
-    chunk_path = os.path.join('./', 'raw_chunks/')
-    zips = os.listdir(chunk_path)
-    for chunk in zips:
-        xd = os.path.join(chunk_path, chunk)
-        with open(xd, 'rb') as zips:
-            data = zips.read()
-            chunk_data = {'chunk_name' : chunk, 'data': data}
-            chunks.append(chunk_data)
-    return chunks
 
-def send_chunk_2(chunk):
-    sio.emit(
-        'on_zip_chunk', 
-        {'chunk_name': chunk['chunk_name'], 'chunk_data': chunk['data']},
-        to=(chunk['chunk_name'].split('.')[0]), 
-    )
-    
-
-def send_chunk(chunk_name):
-    raw_chunk_path = os.path.join('./', 'raw_chunks/', chunk_name)
-    with open(raw_chunk_path, 'rb') as zip:
-        data = zip.read()
-        sid = str(chunk_name).split('.').pop(0)
-        sio.emit(
-            'on_zip_chunk', 
-            {'chunk_name': chunk_name, 'chunk_data': data},
-            to=(sid), 
-        )
-
-def tell_to_start_processing(sid):
-    sio.emit('start_processing_chunk', {'xd': 'xd'}, to=sid)
+def start_processing():
+    #process_video_instance.recolect_frames()
+    raw_frames = process_video_instance.get_raw_frames()
+    divide_workload(raw_frames)
+    #make_chunks()
+    socketio.emit("chunks_ready")
 
 if __name__ == '__main__':
-    #web.run_app(app,port=5000)
-    #eventlet.wsgi.server(eventlet.listen(('localhost', 5000)), app)
-    app.run(host='0.0.0.0', port=8000)
-    """
-    peer = {'sid': 'djenidnoidnwanoid',
-            'raw_frames_sent': 0,
-            'processed_frames_received': 0,
-            'frames_to_process': []}
-    peer2 = {'sid': 'diwandwoai',
-            'raw_frames_sent': 0,
-            'processed_frames_received': 0,
-            'frames_to_process': []}
-    peer3 = {'sid': 'hdwaoidiwanidnwao',
-            'raw_frames_sent': 0,
-            'processed_frames_received': 0,
-            'frames_to_process': []}
-
-    raw_frames = process_video_instance.get_raw_frames()
-    peers.append(peer)
-    peers.append(peer2)
-    peers.append(peer3)
-    divide_workload(raw_frames)
-    """
+    socketio.run(app, port=8000)
