@@ -24,6 +24,7 @@ def on_zip_chunk(data):
         zip.write(data['chunk_data']) 
     process_video_instance.extract_chunk(chunk_path, 'raw_frames')
     print('Se extrajo chunk: ', data['chunk_name'])
+    return "OK"
 
 @sio.event
 def start_processing_chunk(data):

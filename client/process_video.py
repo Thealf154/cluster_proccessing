@@ -108,7 +108,7 @@ class ProcessVideo:
         return new_dim
 
     def get_original_dimensions(self):
-        frame_sample_path = os.path.join('./', 'raw_frames/', 'frame_0.png')
+        frame_sample_path = os.path.join('./', 'raw_frames/', self.raw_frames[0])
         frame_sample = Image.open(frame_sample_path)
         (old_width, old_height) = frame_sample.size
         return (old_width, old_height)

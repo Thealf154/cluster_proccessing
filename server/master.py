@@ -4,9 +4,11 @@ import logging
 from process_video import ProcessVideo
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
+from multiprocessing import Pool
 from flask import Flask
 import sys
 from flask_cors import CORS
+import time
 
 
 logger = logging.getLogger()
@@ -79,19 +81,18 @@ def divide_workload(raw_frames):
 
 
 def start_processing():
-    process_video_instance.recolect_frames()
+    #process_video_instance.recolect_frames()
     raw_frames = process_video_instance.get_raw_frames()
     divide_workload(raw_frames)
     make_chunks()
-    """
     with ThreadPoolExecutor(max_workers=wanted_peers) as executor:
         chunk_path = os.path.join('./', 'raw_chunks/')
         executor.map(send_chunk, os.listdir(chunk_path))
     """
-    chunk_path = os.path.join('./', 'raw_chunks/')
-    for chunk in os.listdir(chunk_path):
-        send_chunk(chunk)
-    sio.emit('start_processing_chunk', {'xd': 'xd'})
+    with Pool() as p:
+        chunk_path = os.path.join('./', 'raw_chunks/')
+        p.map(send_chunk, os.listdir(chunk_path))
+    """
 
 def make_chunks():
     for peer in peers:
@@ -107,12 +108,17 @@ def send_chunk(chunk_name):
     raw_chunk_path = os.path.join('./', 'raw_chunks/', chunk_name)
     with open(raw_chunk_path, 'rb') as zip:
         data = zip.read()
-        sio.emit(
+        sid = str(chunk_name).split('.').pop(0)
+        sio.call(
             'on_zip_chunk', 
             {'chunk_name': chunk_name, 'chunk_data': data},
-            to=(str(chunk_name).split('.').pop(0))
+            to=(sid), 
+            callback=tell_to_start_processing(sid)
         )
         zip.flush()
+
+def tell_to_start_processing(sid):
+    sio.emit('start_processing_chunk', {'xd': 'xd'}, to=sid)
 
 if __name__ == '__main__':
     #web.run_app(app,port=5000)
