@@ -15,16 +15,16 @@ def connect():
 def disconnect():
     print('unu')
 
+
 @sio.event
 def on_zip_chunk(data):
     print('Se recibió el chunk: ', data['chunk_name'])
     chunk_path = os.path.join('./', 'raw_chunks/', data['chunk_name'])
-    sid = str(data['chunk_name']).split('.').pop(0)
     with open(chunk_path, 'wb') as zip:
         zip.write(data['chunk_data']) 
     process_video_instance.extract_chunk(chunk_path, 'raw_frames')
     print('Se extrajo chunk: ', data['chunk_name'])
-    return "OK"
+    sio.emit('check_chunk', {'xd': 'xd'})
 
 @sio.event
 def start_processing_chunk(data):

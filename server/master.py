@@ -19,7 +19,8 @@ logging.basicConfig(format='%(asctime)s : %(message)s',
 peers = []
 
 # How many peers will work on the video
-wanted_peers = 2
+wanted_peers = 1
+chunks = 0
 
 # create a Socket.IO server
 sio = socketio.Server(async_mode='threading', max_http_buffer_size=(80_000_000), cors_allowed_origins=[], engineio_logger=True, always_connect=True, logger=True)
@@ -58,6 +59,10 @@ def disconnect(sid):
     print('Este peer se ha desconectado: ', sid)
 
 @sio.event
+def check_chunk(sid, data):
+    sio.emit('start_processing_chunk', {'xd': 'xd'}, to=sid)
+
+@sio.event
 def on_processed_chunk(sid, data):
     print('Se recibió el chunk: ', data['chunk_name'])
     chunk_path = os.path.join('./', 'processed_chunks/', data['chunk_name'])
@@ -85,14 +90,18 @@ def start_processing():
     raw_frames = process_video_instance.get_raw_frames()
     divide_workload(raw_frames)
     make_chunks()
+
+    """
     with ThreadPoolExecutor(max_workers=wanted_peers) as executor:
         chunk_path = os.path.join('./', 'raw_chunks/')
         executor.map(send_chunk, os.listdir(chunk_path))
+    chunk_path = os.path.join('./', 'raw_chunks/')
+    for i in os.listdir(chunk_path):
+        send_chunk(i)
     """
-    with Pool() as p:
+    with ThreadPoolExecutor(max_workers=wanted_peers) as executor:
         chunk_path = os.path.join('./', 'raw_chunks/')
-        p.map(send_chunk, os.listdir(chunk_path))
-    """
+        executor.map(send_chunk, os.listdir(chunk_path))
 
 def make_chunks():
     for peer in peers:
@@ -109,13 +118,11 @@ def send_chunk(chunk_name):
     with open(raw_chunk_path, 'rb') as zip:
         data = zip.read()
         sid = str(chunk_name).split('.').pop(0)
-        sio.call(
+        sio.emit(
             'on_zip_chunk', 
             {'chunk_name': chunk_name, 'chunk_data': data},
             to=(sid), 
-            callback=tell_to_start_processing(sid)
         )
-        zip.flush()
 
 def tell_to_start_processing(sid):
     sio.emit('start_processing_chunk', {'xd': 'xd'}, to=sid)
