@@ -24,7 +24,7 @@ def on_zip_chunk(data):
         zip.write(data['chunk_data']) 
     process_video_instance.extract_chunk(chunk_path, 'raw_frames')
     print('Se extrajo chunk: ', data['chunk_name'])
-    sio.emit('check_chunk', {'xd': 'xd'})
+    send_processed_chunk()
 
 @sio.event
 def start_processing_chunk(data):
@@ -32,11 +32,13 @@ def start_processing_chunk(data):
 
 def send_processed_chunk():
     process_video_instance.run()
+    pro = process_video_instance.get_processed_frames()
     chunk_name = 'procc-chunk-' + sio.sid + '.zip'
     process_video_instance.divide_frames_in_chunks(
         chunk_name,
         'processed_frames',
-        'processed_chunks'
+        'processed_chunks',
+        pro
     )
     raw_chunk_path = os.path.join('./', 'processed_chunks/', chunk_name)
     with open(raw_chunk_path, 'rb') as zip:

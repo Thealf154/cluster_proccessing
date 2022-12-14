@@ -35,8 +35,7 @@ logging.getLogger('flask_cors').level = logging.DEBUG
 @sio.event
 def connect(sid, environ):
     peer = {'sid': sid,
-            'raw_frames_sent': 0,
-            'processed_frames_received': 0,
+            'has_extracted_chunk': 1,
             'frames_to_process': []}
     peers.append(peer)
     print('Peer conectad: ', sid)
@@ -90,16 +89,12 @@ def start_processing():
     raw_frames = process_video_instance.get_raw_frames()
     divide_workload(raw_frames)
     make_chunks()
-
     """
+    chunks = load_chunks()
     with ThreadPoolExecutor(max_workers=wanted_peers) as executor:
-        chunk_path = os.path.join('./', 'raw_chunks/')
-        executor.map(send_chunk, os.listdir(chunk_path))
-    chunk_path = os.path.join('./', 'raw_chunks/')
-    for i in os.listdir(chunk_path):
-        send_chunk(i)
+        executor.map(send_chunk_2, chunks)
     """
-    with ThreadPoolExecutor(max_workers=wanted_peers) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:
         chunk_path = os.path.join('./', 'raw_chunks/')
         executor.map(send_chunk, os.listdir(chunk_path))
 
@@ -112,6 +107,26 @@ def make_chunks():
             'raw_chunks',
             peer['frames_to_process']
         )
+
+def load_chunks():
+    chunks = []
+    chunk_path = os.path.join('./', 'raw_chunks/')
+    zips = os.listdir(chunk_path)
+    for chunk in zips:
+        xd = os.path.join(chunk_path, chunk)
+        with open(xd, 'rb') as zips:
+            data = zips.read()
+            chunk_data = {'chunk_name' : chunk, 'data': data}
+            chunks.append(chunk_data)
+    return chunks
+
+def send_chunk_2(chunk):
+    sio.emit(
+        'on_zip_chunk', 
+        {'chunk_name': chunk['chunk_name'], 'chunk_data': chunk['data']},
+        to=(chunk['chunk_name'].split('.')[0]), 
+    )
+    
 
 def send_chunk(chunk_name):
     raw_chunk_path = os.path.join('./', 'raw_chunks/', chunk_name)
