@@ -140,15 +140,14 @@ class ProcessVideo:
         ffmpeg.concat(input_video, input_audio, v=1,
                       a=1).output(output_path).run()
 
-    def divide_frames_in_chunks(self, chunk_name, frame_type, chunk_destination):
+    def divide_frames_in_chunks(self, chunk_name, frame_type, chunk_destination, frames):
         self.logger.debug('Se está haciendo el chunk: ', chunk_name)
         zip_path = os.path.join('./', str(chunk_destination))
         zip_path = os.path.join(zip_path, chunk_name)
         file_path = os.path.join('./', frame_type)
-        frames = self.get_all_file_paths(file_path)
         with ZipFile(zip_path, 'w') as zip:
             for frame in frames:
-                zip.write(frame, os.path.relpath(frame, file_path))
+                zip.write(os.path.join('./raw_frames/', frame), os.path.relpath(frame, file_path))
         self.logger.debug('Se terminó el chunk: ', chunk_name)
 
     @staticmethod
@@ -172,10 +171,6 @@ class ProcessVideo:
             extract_path = os.path.join('./', str(destination) + '/')
             zip.extractall(extract_path)
 
-    @staticmethod
-    def clean():
-        processed_chunks_path
-        processed_chunks_path
 
 if __name__ == '__main__':
     start_time = time.time()

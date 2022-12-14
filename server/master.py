@@ -17,7 +17,7 @@ logging.basicConfig(format='%(asctime)s : %(message)s',
 peers = []
 
 # How many peers will work on the video
-wanted_peers = 3
+wanted_peers = 2
 
 # create a Socket.IO server
 sio = socketio.Server(async_mode='threading', max_http_buffer_size=(80_000_000), cors_allowed_origins=[], engineio_logger=True, always_connect=True, logger=True)
@@ -75,17 +75,23 @@ def divide_workload(raw_frames):
             end = dividend * (i + 1)
             peers[i]['frames_to_process'] = raw_frames[start:end]
     if residue != 0:
-        peers[len(peers)]['frames_to_process'].append(raw_frames[-residue])
+        peers[len(peers) - 1]['frames_to_process'].append(raw_frames[-residue])
 
 
 def start_processing():
-    # process_video_instance.recolect_frames()
+    process_video_instance.recolect_frames()
     raw_frames = process_video_instance.get_raw_frames()
     divide_workload(raw_frames)
     make_chunks()
+    """
     with ThreadPoolExecutor(max_workers=wanted_peers) as executor:
         chunk_path = os.path.join('./', 'raw_chunks/')
         executor.map(send_chunk, os.listdir(chunk_path))
+    """
+    chunk_path = os.path.join('./', 'raw_chunks/')
+    for chunk in os.listdir(chunk_path):
+        send_chunk(chunk)
+    sio.emit('start_processing_chunk', {'xd': 'xd'})
 
 def make_chunks():
     for peer in peers:
@@ -93,7 +99,8 @@ def make_chunks():
         process_video_instance.divide_frames_in_chunks(
             chunk_name, 
             'raw_frames',
-            'raw_chunks'
+            'raw_chunks',
+            peer['frames_to_process']
         )
 
 def send_chunk(chunk_name):
@@ -108,6 +115,26 @@ def send_chunk(chunk_name):
         zip.flush()
 
 if __name__ == '__main__':
-    # web.run_app(app,port=5000)
+    #web.run_app(app,port=5000)
     #eventlet.wsgi.server(eventlet.listen(('localhost', 5000)), app)
     app.run(host='0.0.0.0', port=8000)
+    """
+    peer = {'sid': 'djenidnoidnwanoid',
+            'raw_frames_sent': 0,
+            'processed_frames_received': 0,
+            'frames_to_process': []}
+    peer2 = {'sid': 'diwandwoai',
+            'raw_frames_sent': 0,
+            'processed_frames_received': 0,
+            'frames_to_process': []}
+    peer3 = {'sid': 'hdwaoidiwanidnwao',
+            'raw_frames_sent': 0,
+            'processed_frames_received': 0,
+            'frames_to_process': []}
+
+    raw_frames = process_video_instance.get_raw_frames()
+    peers.append(peer)
+    peers.append(peer2)
+    peers.append(peer3)
+    divide_workload(raw_frames)
+    """
