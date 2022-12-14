@@ -27,14 +27,12 @@ def chunks_ready():
     )
     chunk_name = str(id) + '.zip'
     chunk_path = os.path.join('./', 'raw_chunks/', chunk_name)
-    """
     save_chunk(chunk_path, response.content)
     extract_chunk_destination = os.path.join('./', 'raw_frames/')
     process_video_instance.extract_chunk(
         destination=extract_chunk_destination,
         chunk_path=chunk_path
     )
-    """
     process_frames()
 
 def save_chunk(chunk_path, chunk_data):
@@ -70,7 +68,7 @@ def get_sid():
 id = get_sid()
 
 def main():
-    sio.connect('http://localhost:8000', auth={'sid': id})
+    sio.connect(url, auth={'sid': id})
     sio.emit('check_connected_peers')
 
 
