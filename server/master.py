@@ -16,7 +16,7 @@ logging.basicConfig(format='%(asctime)s : %(message)s',
 peers = []
 
 # How many peers will work on the video
-wanted_peers = 1
+wanted_peers = 3
 chunks = 0
 
 # create a Socket.IO server
@@ -127,8 +127,8 @@ def start_processing():
     #process_video_instance.recolect_frames()
     raw_frames = process_video_instance.get_raw_frames()
     divide_workload(raw_frames)
-    #make_chunks()
+    make_chunks()
     socketio.emit("chunks_ready")
 
 if __name__ == '__main__':
-    socketio.run(app, port=8000)
+    socketio.run(app, port=8000, host='0.0.0.0')

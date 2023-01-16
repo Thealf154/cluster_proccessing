@@ -40,6 +40,7 @@ def save_chunk(chunk_path, chunk_data):
         chunk.write(chunk_data)
 
 def process_frames():
+    chunk_name = str(id) + '.zip'
     process_video_instance.run()
     processed_frames = process_video_instance.get_processed_frames()
     process_video_instance.divide_frames_in_chunks(
@@ -48,7 +49,6 @@ def process_frames():
         'processed_chunks',
         processed_frames
     )   
-    chunk_name = str(id) + '.zip'
     processed_chunk_path = os.path.join('./', 'processed_chunks/', chunk_name)
     with open(processed_chunk_path, 'rb') as zip:
         data = zip.read()
